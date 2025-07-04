@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Professional MySQL Database Management Application
-A streamlined database management tool with Tkinter GUI
-"""
-
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import mysql.connector
