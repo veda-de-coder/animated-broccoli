@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Professional MySQL Database Management Application
-A comprehensive database management tool with Tkinter GUI
+A streamlined database management tool with Tkinter GUI
 """
 
 import tkinter as tk
@@ -16,8 +16,6 @@ from datetime import datetime
 import re
 import threading
 import queue
-import hashlib
-import sqlite3
 from pathlib import Path
 
 class ConfigManager:
@@ -27,30 +25,13 @@ class ConfigManager:
         self.config_dir = Path.home() / '.mysql_manager'
         self.config_file = self.config_dir / 'config.json'
         self.projects_file = self.config_dir / 'projects.json'
-        self.users_db = self.config_dir / 'users.db'
         
         self._ensure_config_dir()
-        self._init_users_db()
         
     def _ensure_config_dir(self):
         """Create config directory if it doesn't exist"""
         self.config_dir.mkdir(exist_ok=True)
         
-    def _init_users_db(self):
-        """Initialize users database"""
-        conn = sqlite3.connect(self.users_db)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password_hash TEXT NOT NULL,
-                role TEXT DEFAULT 'user',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        conn.commit()
-        conn.close()
-
     def load_config(self):
         """Load application configuration with comprehensive error handling"""
         # Define default configuration structure
@@ -68,8 +49,7 @@ class ConfigManager:
             'editor': {
                 'auto_complete': True,
                 'syntax_highlighting': True
-            },
-            'current_user': None
+            }
         }
 
         # Create config directory if it doesn't exist
@@ -164,33 +144,18 @@ class ThemeManager:
             'menu_fg': '#333333'      # Dark gray menu text
         },
         'Dark': {
-            # Your existing colors
             'bg': '#2d2d2d',            # Dark background
             'fg': "#5e5e5e",            # Mid-gray foreground
-            'select_bg': '#0078d4',     # Bright blue selection
+            'select_bg': "#004172",     # Bright blue selection
             'select_fg': '#ffffff',     # White selection text
             'entry_bg': '#404040',      # Input field background
             'entry_fg': "#636363",      # Input field text
             'button_bg': '#404040',     # Button background
-            'button_fg': "#959595",     # Button text
+            'button_fg': "#DEDEDE",     # Button text
             'text_bg': "#343434",       # Text background
             'text_fg': "#ffffff",       # Text foreground
             'menu_bg': '#404040',       # Menu background
             'menu_fg': "#5d5d5d",      # Menu text
-        },
-        'Blue': {
-            'bg': "#365A88",
-            'fg': '#ffffff',
-            'select_bg': '#4a90e2',
-            'select_fg': '#ffffff',
-            'entry_bg': '#2d4f73',
-            'entry_fg': '#ffffff',
-            'button_bg': '#2d4f73',
-            'button_fg': '#ffffff',
-            'text_bg': '#1e3a5f',
-            'text_fg': '#ffffff',
-            'menu_bg': '#2d4f73',
-            'menu_fg': '#ffffff'
         }
     }
 
@@ -463,158 +428,6 @@ class QueryHistoryManager:
         with open(self.favorites_file, 'w') as f:
             json.dump(favorites, f, indent=4)
 
-class LoginDialog:
-    """User login dialog"""
-    
-    def __init__(self, parent, config_manager):
-        self.parent = parent
-        self.config_manager = config_manager
-        self.result = None
-        
-    def show(self):
-        """Show login dialog"""
-        dialog = tk.Toplevel(self.parent)
-        dialog.title("Login")
-        dialog.geometry("300x200")
-        dialog.transient(self.parent)
-        dialog.grab_set()
-        
-        # Center dialog
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (200 // 2)
-        dialog.geometry(f"300x200+{x}+{y}")
-        
-        # Create form
-        frame = ttk.Frame(dialog, padding="20")
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        ttk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        username_entry = ttk.Entry(frame, width=25)
-        username_entry.grid(row=0, column=1, pady=5)
-        
-        ttk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        password_entry = ttk.Entry(frame, width=25, show="*")
-        password_entry.grid(row=1, column=1, pady=5)
-        
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=2, column=0, columnspan=2, pady=20)
-        
-        def login():
-            username = username_entry.get()
-            password = password_entry.get()
-            
-            if self.authenticate(username, password):
-                self.result = username
-                dialog.destroy()
-            else:
-                messagebox.showerror("Error", "Invalid username or password")
-                
-        def create_account():
-            CreateUserDialog(dialog, self.config_manager).show()
-            
-        ttk.Button(button_frame, text="Login", command=login).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Create Account", command=create_account).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-        
-        username_entry.focus()
-        dialog.wait_window()
-        return self.result
-        
-    def authenticate(self, username, password):
-        """Authenticate user"""
-        conn = sqlite3.connect(self.config_manager.users_db)
-        cursor = conn.cursor()
-        
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        cursor.execute("SELECT username FROM users WHERE username = ? AND password_hash = ?", 
-                      (username, password_hash))
-        result = cursor.fetchone()
-        conn.close()
-        
-        return result is not None
-
-class CreateUserDialog:
-    """Create user account dialog"""
-    
-    def __init__(self, parent, config_manager):
-        self.parent = parent
-        self.config_manager = config_manager
-        
-    def show(self):
-        """Show create user dialog"""
-        dialog = tk.Toplevel(self.parent)
-        dialog.title("Create Account")
-        dialog.geometry("300x250")
-        dialog.transient(self.parent)
-        dialog.grab_set()
-        
-        # Center dialog
-        dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
-        y = (dialog.winfo_screenheight() // 2) - (250 // 2)
-        dialog.geometry(f"300x250+{x}+{y}")
-        
-        # Create form
-        frame = ttk.Frame(dialog, padding="20")
-        frame.pack(fill=tk.BOTH, expand=True)
-        
-        ttk.Label(frame, text="Username:").grid(row=0, column=0, sticky=tk.W, pady=5)
-        username_entry = ttk.Entry(frame, width=25)
-        username_entry.grid(row=0, column=1, pady=5)
-        
-        ttk.Label(frame, text="Password:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        password_entry = ttk.Entry(frame, width=25, show="*")
-        password_entry.grid(row=1, column=1, pady=5)
-        
-        ttk.Label(frame, text="Confirm Password:").grid(row=2, column=0, sticky=tk.W, pady=5)
-        confirm_entry = ttk.Entry(frame, width=25, show="*")
-        confirm_entry.grid(row=2, column=1, pady=5)
-        
-        button_frame = ttk.Frame(frame)
-        button_frame.grid(row=3, column=0, columnspan=2, pady=20)
-        
-        def create():
-            username = username_entry.get()
-            password = password_entry.get()
-            confirm = confirm_entry.get()
-            
-            if not username or not password:
-                messagebox.showerror("Error", "Please fill in all fields")
-                return
-                
-            if password != confirm:
-                messagebox.showerror("Error", "Passwords do not match")
-                return
-                
-            if self.create_user(username, password):
-                messagebox.showinfo("Success", "Account created successfully")
-                dialog.destroy()
-            else:
-                messagebox.showerror("Error", "Username already exists")
-                
-        ttk.Button(button_frame, text="Create", command=create).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
-        
-        username_entry.focus()
-        dialog.wait_window()
-        
-    def create_user(self, username, password):
-        """Create new user account"""
-        conn = sqlite3.connect(self.config_manager.users_db)
-        cursor = conn.cursor()
-        
-        try:
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            cursor.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", 
-                          (username, password_hash))
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
-        finally:
-            conn.close()
-
 class MySQLDatabaseManager:
     """Main application class"""
     
@@ -633,14 +446,6 @@ class MySQLDatabaseManager:
         # Apply theme
         self.theme_manager.apply_theme(self.config['appearance']['theme'])
         
-        # Current user
-        self.current_user = None
-        
-        # Show login if user management is enabled
-        if not self.authenticate_user():
-            self.root.destroy()
-            return
-            
         # Initialize UI
         self.create_menu()
         self.create_main_interface()
@@ -649,30 +454,6 @@ class MySQLDatabaseManager:
         # Start with home screen
         self.show_home_screen()
         
-    def authenticate_user(self):
-        """Authenticate user or skip if no users exist"""
-        conn = sqlite3.connect(self.config_manager.users_db)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        conn.close()
-        
-        if user_count == 0:
-            # No users exist, create default admin
-            self.create_default_admin()
-            return True
-            
-        # Show login dialog
-        login_dialog = LoginDialog(self.root, self.config_manager)
-        self.current_user = login_dialog.show()
-        
-        if self.current_user:
-            self.config['current_user'] = self.current_user
-            self.config_manager.save_config(self.config)
-            return True
-            
-        return False
-        
     def change_theme(self, theme_name):
         """Change application theme"""
         if theme_name in self.theme_manager.THEMES:
@@ -680,19 +461,6 @@ class MySQLDatabaseManager:
         else:
             messagebox.showerror("Error", f"Theme '{theme_name}' not found.")
 
-    def create_default_admin(self):
-        """Create default admin user"""
-        conn = sqlite3.connect(self.config_manager.users_db)
-        cursor = conn.cursor()
-        
-        password_hash = hashlib.sha256("admin".encode()).hexdigest()
-        cursor.execute("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)", 
-                      ("admin", password_hash, "admin"))
-        conn.commit()
-        conn.close()
-        
-        self.current_user = "admin"
-        
     def create_menu(self):
         """Create application menu"""
         menubar = tk.Menu(self.root)
@@ -752,9 +520,6 @@ class MySQLDatabaseManager:
         
         self.status_label = ttk.Label(self.status_frame, text="Ready", relief=tk.SUNKEN)
         self.status_label.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        self.user_label = ttk.Label(self.status_frame, text=f"User: {self.current_user}", relief=tk.SUNKEN)
-        self.user_label.pack(side=tk.RIGHT)
         
     def show_home_screen(self):
         """Show home screen"""
@@ -1007,68 +772,75 @@ class MySQLDatabaseManager:
         for tab in self.notebook.tabs():
             self.notebook.forget(tab)
             
-        # Create main tabs
+        # Create main tabs with better SQL workflow layout
         self.create_query_tab()
-        self.create_tables_tab()
-        self.create_data_tab()
+        self.create_data_tab()  # Combined data and structure view
+        self.create_tools_tab()
         
         self.update_status(f"Connected to database: {database_name}")
         
     def create_query_tab(self):
-        """Create SQL query tab"""
+        """Create SQL query tab with improved layout"""
         query_frame = ttk.Frame(self.notebook)
-        self.notebook.add(query_frame, text="SQL Query")
+        self.notebook.add(query_frame, text="SQL Editor")
         
         # Create paned window for query editor and results
         paned = ttk.PanedWindow(query_frame, orient=tk.VERTICAL)
         paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Query editor frame
+        # Query editor frame (larger portion)
         editor_frame = ttk.Frame(paned)
-        paned.add(editor_frame, weight=1)
+        paned.add(editor_frame, weight=3)  # 75% of space
         
-        # Toolbar
+        # Toolbar with essential buttons
         toolbar = ttk.Frame(editor_frame)
         toolbar.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Button(toolbar, text="Execute", command=self.execute_query).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="Execute (F5)", command=self.execute_query).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Clear", command=self.clear_query).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Save Query", command=self.save_query).pack(side=tk.LEFT, padx=2)
         ttk.Button(toolbar, text="Load Query", command=self.load_query).pack(side=tk.LEFT, padx=2)
         
-        # Query editor
+        # Query editor with line numbers
         editor_container = ttk.Frame(editor_frame)
         editor_container.pack(fill=tk.BOTH, expand=True)
         
+        # Line numbers
+        self.line_numbers = tk.Text(editor_container, width=4, padx=4, pady=4, 
+                                  state='disabled', takefocus=0, border=0, 
+                                  background='#f0f0f0', foreground='#666666')
+        self.line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Main query editor
         self.query_text = tk.Text(editor_container, height=10, wrap=tk.NONE, 
-                                 font=('Courier', self.config['appearance']['font_size']))
+                                 font=('Courier', self.config['appearance']['font_size']),
+                                 undo=True)
         
         # Scrollbars for query editor
         query_v_scroll = ttk.Scrollbar(editor_container, orient=tk.VERTICAL, command=self.query_text.yview)
         query_h_scroll = ttk.Scrollbar(editor_container, orient=tk.HORIZONTAL, command=self.query_text.xview)
-        self.query_text.configure(yscrollcommand=query_v_scroll.set, xscrollcommand=query_h_scroll.set)
+        self.query_text.configure(yscrollcommand=lambda *args: self.on_text_scroll(*args, query_v_scroll),
+                                 xscrollcommand=query_h_scroll.set)
         
-        self.query_text.grid(row=0, column=0, sticky='nsew')
-        query_v_scroll.grid(row=0, column=1, sticky='ns')
-        query_h_scroll.grid(row=1, column=0, sticky='ew')
-        
-        editor_container.grid_rowconfigure(0, weight=1)
-        editor_container.grid_columnconfigure(0, weight=1)
+        self.query_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        query_v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        query_h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         
         # Initialize syntax highlighter
         self.sql_highlighter = SQLHighlighter(self.query_text, self.theme_manager)
         self.query_text.bind('<KeyRelease>', self.sql_highlighter.highlight)
+        self.query_text.bind('<KeyPress>', self.update_line_numbers)
         
-        # Results frame
+        # Results frame (smaller portion)
         results_frame = ttk.Frame(paned)
-        paned.add(results_frame, weight=2)
+        paned.add(results_frame, weight=1)  # 25% of space
         
         # Results toolbar
         results_toolbar = ttk.Frame(results_frame)
         results_toolbar.pack(fill=tk.X, pady=(0, 5))
         
         ttk.Label(results_toolbar, text="Results:").pack(side=tk.LEFT)
-        ttk.Button(results_toolbar, text="Export Results", command=self.export_results).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(results_toolbar, text="Export", command=self.export_results).pack(side=tk.RIGHT, padx=2)
         
         # Results treeview
         self.results_tree = ttk.Treeview(results_frame)
@@ -1082,33 +854,84 @@ class MySQLDatabaseManager:
         results_v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         results_h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         
-    def create_tables_tab(self):
-        """Create tables management tab"""
-        tables_frame = ttk.Frame(self.notebook)
-        self.notebook.add(tables_frame, text="Tables")
+        # Set initial line numbers
+        self.update_line_numbers()
         
-        # Create paned window
-        paned = ttk.PanedWindow(tables_frame, orient=tk.HORIZONTAL)
+    def on_text_scroll(self, *args):
+        """Handle text scrolling for line numbers"""
+        self.line_numbers.yview_moveto(args[0])
+        self.query_text.yview_moveto(args[0])
+        
+    def update_line_numbers(self, event=None):
+        """Update line numbers in the editor"""
+        # Get current line count
+        line_count = self.query_text.get('1.0', 'end').count('\n') + 1
+        
+        # Configure line numbers
+        self.line_numbers.config(state='normal')
+        self.line_numbers.delete('1.0', 'end')
+        
+        for i in range(1, line_count + 1):
+            self.line_numbers.insert('end', f'{i}\n')
+            
+        self.line_numbers.config(state='disabled')
+        
+    def create_data_tab(self):
+        """Create combined data and structure view tab"""
+        data_frame = ttk.Frame(self.notebook)
+        self.notebook.add(data_frame, text="Database Explorer")
+        
+        # Create paned window for structure and data
+        paned = ttk.PanedWindow(data_frame, orient=tk.HORIZONTAL)
         paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Tables list frame
-        tables_list_frame = ttk.LabelFrame(paned, text="Tables", padding="5")
-        paned.add(tables_list_frame, weight=1)
+        # Left pane - Database structure
+        structure_frame = ttk.LabelFrame(paned, text="Database Structure", padding="5")
+        paned.add(structure_frame, weight=1)
         
         # Tables listbox
-        self.tables_listbox = tk.Listbox(tables_list_frame)
+        self.tables_listbox = tk.Listbox(structure_frame)
         self.tables_listbox.pack(fill=tk.BOTH, expand=True)
         self.tables_listbox.bind('<<ListboxSelect>>', self.on_table_select)
         
-        # Refresh tables button
-        ttk.Button(tables_list_frame, text="Refresh", command=self.refresh_tables).pack(pady=5)
+        # Right pane - Data and structure details
+        details_frame = ttk.Frame(paned)
+        paned.add(details_frame, weight=2)
         
-        # Table info frame
-        table_info_frame = ttk.LabelFrame(paned, text="Table Structure", padding="5")
-        paned.add(table_info_frame, weight=2)
+        # Notebook for table data and structure
+        details_notebook = ttk.Notebook(details_frame)
+        details_notebook.pack(fill=tk.BOTH, expand=True)
+        
+        # Data tab
+        data_tab = ttk.Frame(details_notebook)
+        details_notebook.add(data_tab, text="Data")
+        
+        # Data toolbar
+        data_toolbar = ttk.Frame(data_tab)
+        data_toolbar.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Button(data_toolbar, text="Refresh", command=self.refresh_data).pack(side=tk.LEFT, padx=5)
+        ttk.Button(data_toolbar, text="Add Row", command=self.add_row).pack(side=tk.LEFT, padx=5)
+        ttk.Button(data_toolbar, text="Delete Row", command=self.delete_row).pack(side=tk.LEFT, padx=5)
+        
+        # Data treeview
+        self.data_tree = ttk.Treeview(data_tab)
+        self.data_tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Data scrollbars
+        data_v_scroll = ttk.Scrollbar(data_tab, orient=tk.VERTICAL, command=self.data_tree.yview)
+        data_h_scroll = ttk.Scrollbar(data_tab, orient=tk.HORIZONTAL, command=self.data_tree.xview)
+        self.data_tree.configure(yscrollcommand=data_v_scroll.set, xscrollcommand=data_h_scroll.set)
+        
+        data_v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        data_h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Structure tab
+        structure_tab = ttk.Frame(details_notebook)
+        details_notebook.add(structure_tab, text="Structure")
         
         # Table structure treeview
-        self.table_structure_tree = ttk.Treeview(table_info_frame, columns=('Type', 'Null', 'Key', 'Default', 'Extra'), show='tree headings')
+        self.table_structure_tree = ttk.Treeview(structure_tab, columns=('Type', 'Null', 'Key', 'Default', 'Extra'), show='tree headings')
         self.table_structure_tree.pack(fill=tk.BOTH, expand=True)
         
         # Configure columns
@@ -1122,36 +945,30 @@ class MySQLDatabaseManager:
         # Load tables
         self.refresh_tables()
         
-    def create_data_tab(self):
-        """Create data viewing/editing tab"""
-        data_frame = ttk.Frame(self.notebook)
-        self.notebook.add(data_frame, text="Data View")
+    def create_tools_tab(self):
+        """Create tools tab for additional functionality"""
+        tools_frame = ttk.Frame(self.notebook)
+        self.notebook.add(tools_frame, text="Tools")
         
-        # Toolbar
-        toolbar = ttk.Frame(data_frame)
-        toolbar.pack(fill=tk.X, pady=(0, 5))
+        # Create notebook for different tools
+        tools_notebook = ttk.Notebook(tools_frame)
+        tools_notebook.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        ttk.Label(toolbar, text="Table:").pack(side=tk.LEFT, padx=5)
+        # Table Designer
+        designer_frame = ttk.Frame(tools_notebook)
+        tools_notebook.add(designer_frame, text="Table Designer")
         
-        self.table_combo = ttk.Combobox(toolbar, state="readonly", width=20)
-        self.table_combo.pack(side=tk.LEFT, padx=5)
-        self.table_combo.bind('<<ComboboxSelected>>', self.load_table_data)
+        # Add button to open table designer
+        ttk.Button(designer_frame, text="Open Table Designer", 
+                  command=self.show_table_designer).pack(pady=20)
         
-        ttk.Button(toolbar, text="Refresh", command=self.refresh_data).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Add Row", command=self.add_row).pack(side=tk.LEFT, padx=5)
-        ttk.Button(toolbar, text="Delete Row", command=self.delete_row).pack(side=tk.LEFT, padx=5)
+        # Relationship Viewer
+        relation_frame = ttk.Frame(tools_notebook)
+        tools_notebook.add(relation_frame, text="Relationships")
         
-        # Data treeview
-        self.data_tree = ttk.Treeview(data_frame)
-        self.data_tree.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Data scrollbars
-        data_v_scroll = ttk.Scrollbar(data_frame, orient=tk.VERTICAL, command=self.data_tree.yview)
-        data_h_scroll = ttk.Scrollbar(data_frame, orient=tk.HORIZONTAL, command=self.data_tree.xview)
-        self.data_tree.configure(yscrollcommand=data_v_scroll.set, xscrollcommand=data_h_scroll.set)
-        
-        # Update table combo
-        self.refresh_table_combo()
+        # Add button to open relationship viewer
+        ttk.Button(relation_frame, text="View Database Relationships", 
+                  command=self.show_relationship_viewer).pack(pady=20)
         
     def execute_query(self):
         """Execute SQL query"""
@@ -1198,6 +1015,7 @@ class MySQLDatabaseManager:
     def clear_query(self):
         """Clear query editor"""
         self.query_text.delete('1.0', tk.END)
+        self.update_line_numbers()
         
     def save_query(self):
         """Save current query as favorite"""
@@ -1245,18 +1063,33 @@ class MySQLDatabaseManager:
             selection = favorites_tree.selection()
             if selection:
                 item = favorites_tree.item(selection[0])
-                name = item['text']
-                selected_fav = next(f for f in favorites if f['name'] == name)
-                self.query_text.delete('1.0', tk.END)
-                self.query_text.insert('1.0', selected_fav['query'])
+                query_index = favorites_tree.index(selection[0])
+                full_query = favorites[query_index]['query']
+                
+                if hasattr(self, 'query_text'):
+                    self.query_text.delete('1.0', tk.END)
+                    self.query_text.insert('1.0', full_query)
+                    self.update_line_numbers()
+                    
                 dialog.destroy()
                 
         button_frame = ttk.Frame(frame)
         button_frame.pack(pady=10)
         
         ttk.Button(button_frame, text="Load", command=load_selected).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Cancel", command=dialog.destroy).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Delete", command=lambda: self.delete_favorite(favorites_tree, favorites)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Close", command=dialog.destroy).pack(side=tk.RIGHT, padx=5)
         
+    def delete_favorite(self, tree, favorites):
+        """Delete favorite query"""
+        selection = tree.selection()
+        if selection:
+            if messagebox.askyesno("Confirm", "Delete selected query from favorites?"):
+                item_index = tree.index(selection[0])
+                favorites.pop(item_index)
+                self.query_history.save_favorites(favorites)
+                tree.delete(selection[0])
+                
     def refresh_tables(self):
         """Refresh tables list"""
         try:
@@ -1275,6 +1108,7 @@ class MySQLDatabaseManager:
         if selection:
             table_name = self.tables_listbox.get(selection[0])
             self.load_table_structure(table_name)
+            self.load_table_data(table_name)
             
     def load_table_structure(self, table_name):
         """Load table structure"""
@@ -1292,23 +1126,13 @@ class MySQLDatabaseManager:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load table structure: {str(e)}")
             
-    def refresh_table_combo(self):
-        """Refresh table combo box"""
-        try:
-            tables = self.db_manager.get_tables()
-            self.table_combo['values'] = tables
-            if tables:
-                self.table_combo.set(tables[0])
-                self.load_table_data()
-                
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to load tables: {str(e)}")
-            
-    def load_table_data(self, event=None):
+    def load_table_data(self, table_name=None):
         """Load data for selected table"""
-        table_name = self.table_combo.get()
         if not table_name:
-            return
+            selection = self.tables_listbox.curselection()
+            if not selection:
+                return
+            table_name = self.tables_listbox.get(selection[0])
             
         try:
             query = f"SELECT * FROM `{table_name}` LIMIT 1000"
@@ -1339,11 +1163,13 @@ class MySQLDatabaseManager:
         
     def add_row(self):
         """Add new row to table"""
-        table_name = self.table_combo.get()
-        if not table_name:
+        selection = self.tables_listbox.curselection()
+        if not selection:
             messagebox.showwarning("Warning", "Please select a table")
             return
             
+        table_name = self.tables_listbox.get(selection[0])
+        
         # Get table structure to create input dialog
         try:
             structure = self.db_manager.get_table_structure(table_name)
@@ -1562,6 +1388,7 @@ class MySQLDatabaseManager:
             # Update font size in query editor
             if hasattr(self, 'query_text'):
                 self.query_text.configure(font=('Courier', int(font_size_var.get())))
+                self.update_line_numbers()
             
             dialog.destroy()
             messagebox.showinfo("Preferences Saved", "Preferences have been updated")
@@ -1617,6 +1444,7 @@ class MySQLDatabaseManager:
                 if hasattr(self, 'query_text'):
                     self.query_text.delete('1.0', tk.END)
                     self.query_text.insert('1.0', full_query)
+                    self.update_line_numbers()
                     
                 dialog.destroy()
                 
@@ -1806,7 +1634,6 @@ class MySQLDatabaseManager:
                 
                 # Refresh tables list
                 self.refresh_tables()
-                self.refresh_table_combo()
                 
             except Error as e:
                 messagebox.showerror("Database Error", f"Failed to create table: {str(e)}")
@@ -1878,16 +1705,84 @@ class MySQLDatabaseManager:
             messagebox.showerror("Database Error", f"Failed to get relationships: {str(e)}")
             
     def show_about(self):
-        """Show about dialog"""
-        about_text = (
-            "Professional MySQL Database Manager\n"
-            "Version 1.0\n\n"
-            "A comprehensive database management tool\n"
-            "with advanced features for database administrators\n\n"
-            "© 2023 Database Solutions Inc."
+        """Show an enhanced about dialog with better formatting and information"""
+        about_dialog = tk.Toplevel(self.root)
+        about_dialog.title("About MySQL Database Manager")
+        about_dialog.geometry("600x400")
+        about_dialog.resizable(False, False)
+        
+        # Center the dialog
+        window_width = about_dialog.winfo_reqwidth()
+        window_height = about_dialog.winfo_reqheight()
+        position_right = int(self.root.winfo_screenwidth()/2 - window_width/2)
+        position_down = int(self.root.winfo_screenheight()/2 - window_height/2)
+        about_dialog.geometry(f"+{position_right}+{position_down}")
+        
+        # Main container frame
+        main_frame = ttk.Frame(about_dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Application title and version
+        ttk.Label(
+            main_frame, 
+            text="MySQL Database Manager", 
+            font=('Helvetica', 16, 'bold')
+        ).pack(pady=(0, 10))
+        
+        ttk.Label(
+            main_frame, 
+            text="Version 2.0", 
+            font=('Helvetica', 12)
+        ).pack(pady=(0, 20))
+        
+        
+        # Description text
+        description = (
+            "A professional-grade MySQL database management tool designed for developers and DBAs.\n\n"
+            "Features include:\n"
+            "• Advanced SQL editor with syntax highlighting\n"
+            "• Comprehensive database exploration tools\n"
+            "• Visual table designer\n"
+            "• Relationship viewer\n"
+            "• Query history and favorites\n"
         )
         
-        messagebox.showinfo("About", about_text)
+        ttk.Label(
+            main_frame, 
+            text=description, 
+            justify=tk.LEFT,
+            font=('Helvetica', 10)
+        ).pack(pady=(0, 20), fill=tk.X)
+        
+        # Copyright and credits
+        credits_frame = ttk.Frame(main_frame)
+        credits_frame.pack(fill=tk.X, pady=(10, 0))
+        
+        ttk.Label(
+            credits_frame, 
+            text="© 2023 zyphernoir inc.\n"
+                "All rights reserved",
+            font=('Helvetica', 9),
+            foreground="#666666"
+        ).pack(side=tk.LEFT)
+        
+        ttk.Label(
+            credits_frame, 
+            text="Developed by: vedanarasimhaan\n"
+                "Contact: vedanarasimhan08@gmail.com.com",
+            font=('Helvetica', 9),
+            foreground="#666666"
+        ).pack(side=tk.RIGHT)
+        
+        # Close button
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(20, 0))
+        
+        ttk.Button(
+            button_frame, 
+            text="Close", 
+            command=about_dialog.destroy
+        ).pack(side=tk.RIGHT)
         
     def update_status(self, message):
         """Update status bar message"""
